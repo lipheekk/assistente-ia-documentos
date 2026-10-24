@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Assistente de documentos</title>
+<style>
+  :root { --fundo:#eef2f5; --papel:#fff; --tinta:#17212b; --suave:#5b6875; --linha:#cdd6de; --destaque:#1f5f8b; --erro:#a3261f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--fundo); color:var(--tinta); font:17px/1.6 "Segoe UI", system-ui, sans-serif; }
+  main { max-width:700px; margin:0 auto; padding:2.5rem 1.25rem 4rem; }
+  h1 { font-size:2rem; line-height:1.2; margin:0 0 .4rem; letter-spacing:-.01em; }
+  p.sub { margin:0 0 2rem; color:var(--suave); }
+  .bloco { background:var(--papel); border:1px solid var(--linha); border-radius:6px; padding:1.25rem; margin-bottom:1.25rem; }
+  label { font-weight:600; display:block; margin-bottom:.5rem; }
+  input[type=file], textarea { width:100%; font:inherit; }
+  textarea { padding:.6rem .75rem; border:1px solid var(--linha); border-radius:4px; resize:vertical; min-height:4.5rem; }
+  button { font:inherit; font-weight:600; background:var(--destaque); color:#fff; border:0; border-radius:4px; padding:.55rem 1.1rem; cursor:pointer; margin-top:.75rem; }
+  button:disabled { opacity:.55; cursor:wait; }
+  :focus-visible { outline:3px solid #7fb4d8; outline-offset:2px; }
+  #status { margin:.75rem 0 0; color:var(--suave); }
+  #status.erro, .msg.erro { color:var(--erro); }
+  #conversa { display:grid; gap:1rem; margin-top:1.25rem; }
+  .msg { white-space:pre-wrap; }
+  .msg.pergunta { font-weight:600; border-left:3px solid var(--destaque); padding-left:.8rem; }
+  [hidden] { display:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Assistente de documentos</h1>
+  <p class="sub">Envie um PDF, TXT ou Markdown e pergunte sobre o conteúdo.</p>
+
+  <section class="bloco">
+    <label for="arquivo">Documento (até 10 MB)</label>
+    <input id="arquivo" type="file" accept=".pdf,.txt,.md">
+    <button id="enviar">Enviar documento</button>
+    <p id="status" role="status"></p>
+  </section>
+
+  <section class="bloco" id="perguntas" hidden>
+    <label for="pergunta">Sua pergunta</label>
+    <textarea id="pergunta" placeholder="Ex.: Qual é o prazo de pagamento citado no documento?"></textarea>
+    <button id="perguntar">Perguntar</button>
+    <div id="conversa" aria-live="polite"></div>
+  </section>
+</main>
+
+<script>
+let docId = null;
+const $ = (id) => document.getElementById(id);
+
+function status(texto, erro = false) {
+  $("status").textContent = texto;
+  $("status").className = erro ? "erro" : "";
+}
+
+async function chamar(url, opcoes) {
+  const r = await fetch(url, opcoes);
+  const dados = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dados.erro || "Erro inesperado. Tente novamente.");
+  return dados;
+}
+
+$("enviar").onclick = async () => {
+  const arquivo = $("arquivo").files[0];
+  if (!arquivo) return status("Selecione um arquivo primeiro.", true);
+  const form = new FormData();
+  form.append("arquivo", arquivo);
+  $("enviar").disabled = true;
+  status("Lendo o documento…");
+  try {
+    const d = await chamar("/upload", { method: "POST", body: form });
+    docId = d.doc_id;
+    status(`${d.nome} carregado (${d.caracteres.toLocaleString("pt-BR")} caracteres)` +
+      (d.truncado ? ". Documento longo: só o início foi usado." : "."));
+    $("perguntas").hidden = false;
+    $("conversa").innerHTML = "";
+  } catch (e) { status(e.message, true); }
+  $("enviar").disabled = false;
+};
+
+function adicionar(classe, texto) {
+  const p = document.createElement("p");
+  p.className = "msg " + classe;
+  p.textContent = texto;
+  $("conversa").prepend(p);
+  return p;
+}
+
+$("perguntar").onclick = async () => {
+  const pergunta = $("pergunta").value.trim();
+  if (!pergunta) return;
+  $("perguntar").disabled = true;
+  const resposta = adicionar("resposta", "Buscando a resposta…");
+  adicionar("pergunta", pergunta);
+  try {
+    const d = await chamar("/perguntar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_id: docId, pergunta }),
+    });
+    resposta.textContent = d.resposta;
+    $("pergunta").value = "";
+  } catch (e) {
+    resposta.textContent = e.message;
+    resposta.classList.add("erro");
+  }
+  $("perguntar").disabled = false;
+};
+</script>
+</body>
+</html>
