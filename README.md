@@ -8,6 +8,18 @@ Você envia um documento (PDF, TXT ou Markdown) e faz perguntas sobre ele. O mod
 
 Python, Flask, pypdf e a API da Anthropic. A interface é uma página HTML simples.
 
+## Estrutura
+
+```
+assistente-ia-documentos/
+├── app.py              # servidor Flask, leitura do documento e chamada à API
+├── templates/
+│   └── index.html      # interface web
+├── requirements.txt
+├── .env.example        # modelo das variáveis de ambiente
+└── .gitignore
+```
+
 ## Como rodar
 
 Você vai precisar do Python 3.10 ou mais novo e de uma chave de API da Anthropic (https://console.anthropic.com/).
